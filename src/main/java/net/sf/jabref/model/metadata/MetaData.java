@@ -46,6 +46,7 @@ public class MetaData {
     private FieldFormatterCleanups saveActions;
     private BibDatabaseMode mode;
     private boolean isProtected;
+    private boolean isFullTextIndexed;
     private String defaultFileDirectory;
 
     /**
@@ -263,6 +264,20 @@ public class MetaData {
     @Override
     public int hashCode() {
         return Objects.hash(groupsRoot, encoding, saveOrderConfig, citeKeyPatterns, userFileDirectory,
-                defaultCiteKeyPattern, saveActions, mode, isProtected, defaultFileDirectory);
+                defaultCiteKeyPattern, saveActions, mode, isProtected, isFullTextIndexed, defaultFileDirectory);
+    }
+
+    public void markAsFullTextIndexed() {
+        isFullTextIndexed = true;
+        postChange();
+    }
+
+    public void markAsNotFullTextIndexed() {
+        isFullTextIndexed = false;
+        postChange();
+    }
+
+    public boolean isFullTextIndexed() {
+        return isFullTextIndexed;
     }
 }

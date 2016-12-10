@@ -60,7 +60,10 @@ public class DatabasePropertiesDialog extends JDialog {
 
     private final JCheckBox protect = new JCheckBox(
             Localization.lang("Refuse to save the database before external changes have been reviewed."));
+    private final JCheckBox fullTextIndexed = new JCheckBox(
+            Localization.lang("Perform full-text indexation of entries linked to file(s)."));
     private boolean oldProtectVal;
+    private boolean oldFullTextIndexed;
     private SaveOrderConfigDisplay saveOrderPanel;
 
     private FieldFormatterCleanupsPanel fieldFormatterCleanupsPanel;
@@ -88,6 +91,7 @@ public class DatabasePropertiesDialog extends JDialog {
         saveInSpecifiedOrder.setEnabled(!isShared);
         saveOrderPanel.setEnabled(!isShared);
         protect.setEnabled(!isShared);
+        fullTextIndexed.setEnabled(!isShared);
     }
 
     private void init(JFrame parent) {
@@ -106,7 +110,7 @@ public class DatabasePropertiesDialog extends JDialog {
 
         setupSortOrderConfiguration();
         FormLayout form = new FormLayout("left:pref, 4dlu, pref:grow, 4dlu, pref:grow, 4dlu, pref",
-                "pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, fill:pref:grow, 180dlu, fill:pref:grow,");
+                "pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, pref, 2dlu, fill:pref:grow, 180dlu, fill:pref:grow,");
         FormBuilder builder = FormBuilder.create().layout(form);
         builder.getPanel().setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
@@ -131,10 +135,13 @@ public class DatabasePropertiesDialog extends JDialog {
         builder.addSeparator(Localization.lang("Database protection")).xyw(1, 23, 5);
         builder.add(protect).xyw(1, 25, 5);
 
+        builder.addSeparator(Localization.lang("Full-text search")).xyw(1, 27, 5);
+        builder.add(fullTextIndexed).xyw(1, 29, 5);
+
         fieldFormatterCleanupsPanel = new FieldFormatterCleanupsPanel(Localization.lang("Enable save actions"),
                 Cleanups.DEFAULT_SAVE_ACTIONS);
-        builder.addSeparator(Localization.lang("Save actions")).xyw(1, 27, 5);
-        builder.add(fieldFormatterCleanupsPanel).xyw(1, 29, 5);
+        builder.addSeparator(Localization.lang("Save actions")).xyw(1, 31, 5);
+        builder.add(fieldFormatterCleanupsPanel).xyw(1, 33, 5);
 
         ButtonBarBuilder bb = new ButtonBarBuilder();
         bb.addGlue();
@@ -228,10 +235,12 @@ public class DatabasePropertiesDialog extends JDialog {
         oldFileIndvVal = fileDirIndv.getText();
 
         protect.setSelected(metaData.isProtected());
+        fullTextIndexed.setSelected(metaData.isFullTextIndexed());
 
         // Store original values to see if they get changed:
         oldFileVal = fileDir.getText();
         oldProtectVal = protect.isSelected();
+        oldFullTextIndexed = fullTextIndexed.isSelected();
 
         //set save actions
         fieldFormatterCleanupsPanel.setValues(metaData);
@@ -262,6 +271,12 @@ public class DatabasePropertiesDialog extends JDialog {
             metaData.markAsProtected();
         } else {
             metaData.markAsNotProtected();
+        }
+
+        if (fullTextIndexed.isSelected()) {
+            metaData.markAsFullTextIndexed();
+        } else {
+            metaData.markAsNotFullTextIndexed();
         }
 
         SaveOrderConfig newSaveOrderConfig;
@@ -299,7 +314,8 @@ public class DatabasePropertiesDialog extends JDialog {
 
         boolean changed = saveOrderConfigChanged || !newEncoding.equals(oldEncoding)
                 || !oldFileVal.equals(fileDir.getText()) || !oldFileIndvVal.equals(fileDirIndv.getText())
-                || (oldProtectVal != protect.isSelected()) || saveActionsChanged;
+                || (oldProtectVal != protect.isSelected()) || (oldFullTextIndexed != fullTextIndexed.isSelected())
+                || saveActionsChanged;
         // ... if so, mark base changed. Prevent the Undo button from removing
         // change marking:
         if (changed) {
