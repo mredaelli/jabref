@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import net.sf.jabref.fulltext.indexing.FullTextIndexer;
 import net.sf.jabref.model.Defaults;
 import net.sf.jabref.model.bibtexkeypattern.GlobalBibtexKeyPattern;
 import net.sf.jabref.model.entry.FieldName;
@@ -30,6 +31,11 @@ public class BibDatabaseContext {
     private File file;
     private DBMSSynchronizer dbmsSynchronizer;
     private DatabaseLocation location;
+
+    /**
+     * this is the full text fullTextIndexer for the current database
+     */
+    private FullTextIndexer fullTextIndexer = new FullTextIndexer(this);
 
     public BibDatabaseContext() {
         this(new Defaults());
@@ -129,6 +135,10 @@ public class BibDatabaseContext {
 
     public BibDatabase getDatabase() {
         return database;
+    }
+
+    public FullTextIndexer getFullTextIndexer() {
+        return fullTextIndexer;
     }
 
     public MetaData getMetaData() {

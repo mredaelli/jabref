@@ -7,7 +7,7 @@ public class SearchRules {
     /**
      * Returns the appropriate search rule that fits best to the given parameter.
      */
-    public static SearchRule getSearchRuleByQuery(String query, boolean caseSensitive, boolean regex) {
+    public static SearchRule getSearchRuleByQuery(String query, boolean caseSensitive, boolean regex, boolean fullText) {
         if (StringUtil.isBlank(query)) {
             return new ContainBasedSearchRule(caseSensitive);
         }

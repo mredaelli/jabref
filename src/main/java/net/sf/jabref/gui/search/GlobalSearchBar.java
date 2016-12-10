@@ -55,6 +55,7 @@ public class GlobalSearchBar extends JPanel {
 
     private final JToggleButton caseSensitive;
     private final JToggleButton regularExp;
+    private final JToggleButton fullText;
     private final JButton searchModeButton = new JButton();
     private final JLabel currentResults = new JLabel("");
 
@@ -132,6 +133,14 @@ public class GlobalSearchBar extends JPanel {
             performSearch();
         });
 
+        fullText = new JToggleButton(IconTheme.JabRefIcon.FULL_TEXT.getSmallIcon(),
+                searchPreferences.isFullText());
+        fullText.setToolTipText(Localization.lang("full text"));
+        fullText.addActionListener(event -> {
+            searchPreferences.setFullText(fullText.isSelected());
+            performSearch();
+        });
+
         caseSensitive = new JToggleButton(IconTheme.JabRefIcon.CASE_SENSITIVE.getSmallIcon(),
                 searchPreferences.isCaseSensitive());
         caseSensitive.setToolTipText(Localization.lang("Case sensitive"));
@@ -194,6 +203,7 @@ public class GlobalSearchBar extends JPanel {
         toolBar.addSeparator();
         toolBar.add(globalSearch);
         toolBar.add(regularExp);
+        toolBar.add(fullText);
         toolBar.add(caseSensitive);
         toolBar.add(searchModeButton);
         toolBar.addSeparator();
@@ -369,7 +379,7 @@ public class GlobalSearchBar extends JPanel {
     }
 
     private SearchQuery getSearchQuery() {
-        SearchQuery searchQuery = new SearchQuery(this.searchField.getText(), this.caseSensitive.isSelected(), this.regularExp.isSelected());
+        SearchQuery searchQuery = new SearchQuery(this.searchField.getText(), this.caseSensitive.isSelected(), this.regularExp.isSelected(), this.fullText.isSelected());
         this.frame.getCurrentBasePanel().setCurrentSearchQuery(searchQuery);
         return searchQuery;
     }
