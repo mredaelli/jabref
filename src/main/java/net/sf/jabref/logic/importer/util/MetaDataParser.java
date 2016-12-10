@@ -77,6 +77,13 @@ public class MetaDataParser {
                     metaData.markAsNotProtected();
                 }
                 break;
+            case MetaData.FULLTEXTINDEXED_FLAG_META:
+                if (Boolean.parseBoolean(getSingleItem(value))) {
+                    metaData.markAsFullTextIndexed();
+                } else {
+                    metaData.markAsNotFullTextIndexed();
+                }
+                break;
             case MetaData.FILE_DIRECTORY:
                 metaData.setDefaultFileDirectory(getSingleItem(value));
                 break;
