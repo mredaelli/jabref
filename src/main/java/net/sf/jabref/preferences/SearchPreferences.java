@@ -12,6 +12,7 @@ public class SearchPreferences {
     private static final String SEARCH_DISPLAY_MODE = "searchDisplayMode";
     private static final String SEARCH_CASE_SENSITIVE = "caseSensitiveSearch";
     private static final String SEARCH_REG_EXP = "regExpSearch";
+    private static final String SEARCH_FULL_TEXT = "fullTextSearch";
 
     private static final String SEARCH_DIALOG_HEIGHT = "searchDialogHeight";
     private static final String SEARCH_DIALOG_WIDTH = "searchDialogWidth";
@@ -30,6 +31,7 @@ public class SearchPreferences {
         defaults.put(SEARCH_DISPLAY_MODE, SearchDisplayMode.FILTER.toString());
         defaults.put(SEARCH_CASE_SENSITIVE, Boolean.FALSE);
         defaults.put(SEARCH_REG_EXP, Boolean.FALSE);
+        defaults.put(SEARCH_FULL_TEXT, Boolean.FALSE);
 
         defaults.put(SEARCH_DIALOG_WIDTH, 650);
         defaults.put(SEARCH_DIALOG_HEIGHT, 500);
@@ -77,6 +79,16 @@ public class SearchPreferences {
         preferences.putBoolean(SEARCH_REG_EXP, isRegularExpression);
         return this;
     }
+
+    public boolean isFullText() {
+        return preferences.getBoolean(SEARCH_FULL_TEXT);
+    }
+
+    public SearchPreferences setFullText(boolean isFullText) {
+        preferences.putBoolean(SEARCH_FULL_TEXT, isFullText);
+        return this;
+    }
+
 
     public int getSeachDialogWidth() {
         return preferences.getInt(SEARCH_DIALOG_WIDTH);

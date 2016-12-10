@@ -58,8 +58,13 @@ import javax.swing.TransferHandler;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
+import com.google.common.eventbus.Subscribe;
+import com.jgoodies.looks.HeaderStyle;
+import com.jgoodies.looks.Options;
 import net.sf.jabref.Globals;
+import net.sf.jabref.JabRefException;
 import net.sf.jabref.JabRefExecutorService;
+import net.sf.jabref.fulltext.indexing.FullTextIndexer;
 import net.sf.jabref.gui.actions.Actions;
 import net.sf.jabref.gui.actions.AutoLinkFilesAction;
 import net.sf.jabref.gui.actions.ConnectToSharedDatabaseAction;
@@ -135,10 +140,6 @@ import net.sf.jabref.preferences.HighlightMatchingGroupPreferences;
 import net.sf.jabref.preferences.JabRefPreferences;
 import net.sf.jabref.preferences.LastFocusedTabPreferences;
 import net.sf.jabref.preferences.SearchPreferences;
-
-import com.google.common.eventbus.Subscribe;
-import com.jgoodies.looks.HeaderStyle;
-import com.jgoodies.looks.Options;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import osx.macadapter.MacAdapter;
@@ -424,6 +425,7 @@ public class JabRefFrame extends JFrame implements OutputPrinter {
     private final AbstractAction manageJournals = new ManageJournalsAction(this);
     private final AbstractAction databaseProperties = new DatabasePropertiesAction();
     private final AbstractAction bibtexKeyPattern = new BibtexKeyPatternAction();
+    private final AbstractAction reindex = new ReindexBtnAction();
     private final AbstractAction errorConsole = new ErrorConsoleAction(this, Globals.getStreamEavesdropper(), GuiAppender.CACHE);
 
     private final AbstractAction cleanupEntries = new GeneralAction(Actions.CLEANUP,
@@ -576,6 +578,10 @@ public class JabRefFrame extends JFrame implements OutputPrinter {
         JMenuItem bibtexKeyPatternBtn = new JMenuItem(Localization.lang("BibTeX key patterns"));
         bibtexKeyPatternBtn.addActionListener(bibtexKeyPattern);
         popupMenu.add(bibtexKeyPatternBtn);
+
+        JMenuItem reindexBtn = new JMenuItem(Localization.lang("Reindex file contents"));
+        reindexBtn.addActionListener(reindex);
+        popupMenu.add(reindexBtn);
 
         return popupMenu;
     }
@@ -2098,6 +2104,28 @@ public class JabRefFrame extends JFrame implements OutputPrinter {
             }
             bibtexKeyPatternDialog.setLocationRelativeTo(JabRefFrame.this);
             bibtexKeyPatternDialog.setVisible(true);
+        }
+
+    }
+
+private class ReindexBtnAction extends MnemonicAwareAction {
+
+        public ReindexBtnAction() {
+            putValue(Action.NAME, Localization.lang("BibTeX key patterns"));
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            final FullTextIndexer fullTextIndexer = getCurrentBasePanel().getBibDatabaseContext()
+                    .getFullTextIndexer();
+
+            try {
+                fullTextIndexer.create();
+                fullTextIndexer.recreateIndex();
+            } catch (JabRefException e1) {
+                e1.printStackTrace();
+            }
+
         }
 
     }

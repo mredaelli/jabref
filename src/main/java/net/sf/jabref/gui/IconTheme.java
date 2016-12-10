@@ -160,7 +160,8 @@ public class IconTheme {
         GLOBAL_SEARCH("\uF1E7"), /* css: earth */
         DATE_PICKER("\uF0ED;"), /* css: calendar */
         // STILL MISSING:
-        GROUP_REGULAR("\uF4E6", Color.RED);
+        GROUP_REGULAR("\uF4E6", Color.RED),
+        FULL_TEXT("\uF4E6", Color.PINK);
 
         private final String code;
         private final Color color;
