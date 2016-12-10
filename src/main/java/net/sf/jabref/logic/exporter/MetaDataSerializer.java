@@ -32,6 +32,9 @@ public class MetaDataSerializer {
         if (metaData.isProtected()) {
             stringyMetaData.put(MetaData.PROTECTED_FLAG_META, Collections.singletonList("true"));
         }
+        if (metaData.isFullTextIndexed()) {
+            stringyMetaData.put(MetaData.FULLTEXTINDEXED_FLAG_META, Collections.singletonList("true"));
+        }
         stringyMetaData.putAll(serializeCiteKeyPattern(metaData, globalCiteKeyPattern));
         metaData.getMode().ifPresent(
                 mode -> stringyMetaData.put(MetaData.DATABASE_TYPE, Collections.singletonList(mode.getAsString())));

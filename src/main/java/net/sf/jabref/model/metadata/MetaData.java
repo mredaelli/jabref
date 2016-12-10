@@ -35,6 +35,7 @@ public class MetaData {
     public static final char ESCAPE_CHARACTER = '\\';
     public static final char SEPARATOR_CHARACTER = ';';
     public static final String SEPARATOR_STRING = String.valueOf(SEPARATOR_CHARACTER);
+    public static final String FULLTEXTINDEXED_FLAG_META = "fulltextindexedFlag";
 
     private final EventBus eventBus = new EventBus();
     private GroupTreeNode groupsRoot;

@@ -1571,6 +1571,14 @@ public class BibtexParserTest {
     }
 
     @Test
+    public void integrationTestFullTextIndexedFlag() throws IOException {
+        ParserResult result = BibtexParser.parse(new StringReader("@comment{jabref-meta: fulltextindexedFlag:true;}"),
+                importFormatPreferences);
+
+        assertTrue(result.getMetaData().isFullTextIndexed());
+    }
+
+    @Test
     public void integrationTestOldContentSelectorsAreIgnored() throws IOException {
         ParserResult result = BibtexParser.parse(
                 new StringReader("@comment{jabref-meta: selector_title:testWord;word2;}"), importFormatPreferences);

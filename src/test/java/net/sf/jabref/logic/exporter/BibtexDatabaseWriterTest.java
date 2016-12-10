@@ -461,6 +461,16 @@ public class BibtexDatabaseWriterTest {
     }
 
     @Test
+    public void fullTextIndexedFlag() throws Exception {
+        metaData.markAsFullTextIndexed();
+
+        StringSaveSession session = databaseWriter.savePartOfDatabase(bibtexContext, Collections.emptyList(), new SavePreferences());
+
+        assertEquals(OS.NEWLINE + "@Comment{jabref-meta: fulltextindexedFlag:true;}" + OS.NEWLINE,
+                session.getStringValue());
+    }
+
+    @Test
     public void writeFileDirectories() throws Exception {
         metaData.setDefaultFileDirectory("\\Literature\\");
         metaData.setUserFileDirectory("defaultOwner-user", "D:\\Documents");
