@@ -2,19 +2,21 @@ package net.sf.jabref.gui.search;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import javax.swing.SwingWorker;
 
 import net.sf.jabref.JabRefGUI;
+import net.sf.jabref.fulltext.indexing.FullTextIndexer;
 import net.sf.jabref.gui.BasePanel;
 import net.sf.jabref.gui.BasePanelMode;
 import net.sf.jabref.gui.maintable.MainTableDataModel;
 import net.sf.jabref.logic.search.SearchQuery;
 import net.sf.jabref.model.database.BibDatabase;
+import net.sf.jabref.model.database.BibDatabaseContext;
 import net.sf.jabref.model.entry.BibEntry;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -31,20 +33,36 @@ class SearchWorker extends SwingWorker<List<BibEntry>, Void> {
 
     private final SearchQuery searchQuery;
     private final SearchDisplayMode searchDisplayMode;
+    private final boolean isFullText;
+    private final BibDatabaseContext databaseContext;
 
-    public SearchWorker(BasePanel basePanel, SearchQuery searchQuery, SearchDisplayMode searchDisplayMode) {
+    public SearchWorker(BasePanel basePanel, SearchQuery searchQuery, SearchDisplayMode searchDisplayMode, boolean isFullText) {
         this.basePanel = Objects.requireNonNull(basePanel);
         this.database = Objects.requireNonNull(basePanel.getDatabase());
+        this.databaseContext = Objects.requireNonNull(basePanel.getBibDatabaseContext());
         this.searchQuery = Objects.requireNonNull(searchQuery);
         this.searchDisplayMode = Objects.requireNonNull(searchDisplayMode);
+        this.isFullText = isFullText;
         LOGGER.debug("Search (" + this.searchDisplayMode.getDisplayName() + "): " + this.searchQuery);
     }
 
     @Override
     protected List<BibEntry> doInBackground() throws Exception {
-        return database.getEntries().parallelStream()
-                .filter(searchQuery::isMatch)
-                .collect(Collectors.toList());
+        if( isFullText ) {
+            FullTextIndexer indexer = databaseContext.getFullTextIndexer();
+            Set<String> keys = indexer.searchForString(searchQuery.getQuery());
+            keys.forEach(LOGGER::debug);
+            return database.getEntries().parallelStream()
+                    .filter(e -> e.getCiteKeyOptional()
+                            .isPresent() && keys.contains(e.getCiteKeyOptional()
+                            .get()))
+                    .collect(Collectors.toList());
+        } else {
+            return database.getEntries()
+                    .parallelStream()
+                    .filter(searchQuery::isMatch)
+                    .collect(Collectors.toList());
+        }
     }
 
     @Override
