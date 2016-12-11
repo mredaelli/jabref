@@ -345,7 +345,7 @@ public class GlobalSearchBar extends JPanel {
             return;
         }
 
-        searchWorker = new SearchWorker(currentBasePanel, searchQuery, searchDisplayMode);
+        searchWorker = new SearchWorker(currentBasePanel, searchQuery, searchDisplayMode, this.fullText.isSelected());
         searchWorker.execute();
     }
 
@@ -379,7 +379,7 @@ public class GlobalSearchBar extends JPanel {
     }
 
     private SearchQuery getSearchQuery() {
-        SearchQuery searchQuery = new SearchQuery(this.searchField.getText(), this.caseSensitive.isSelected(), this.regularExp.isSelected(), this.fullText.isSelected());
+        SearchQuery searchQuery = new SearchQuery(this.searchField.getText(), this.caseSensitive.isSelected(), this.regularExp.isSelected());
         this.frame.getCurrentBasePanel().setCurrentSearchQuery(searchQuery);
         return searchQuery;
     }

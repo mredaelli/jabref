@@ -4,9 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import net.sf.jabref.Globals;
 import net.sf.jabref.JabRefException;
@@ -20,20 +23,43 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
+import static net.sf.jabref.fulltext.indexing.FullTextIndexer.LUCENE_FIELDS.FILE_NAME;
+import static net.sf.jabref.fulltext.indexing.FullTextIndexer.LUCENE_FIELDS.FULL_CONTENT;
+import static net.sf.jabref.fulltext.indexing.FullTextIndexer.LUCENE_FIELDS.KEY;
 import static net.sf.jabref.logic.util.io.FileUtil.getListOfLinkedFiles;
 
 public class FullTextIndexer {
+
+    private static final int MAX_DOCS = 9999;
+    private IndexWriterConfig config;
+    private IndexSearcher searcher;
+    private IndexReader reader;
+
+    enum LUCENE_FIELDS { FULL_CONTENT, KEY, FILE_NAME }
 
     private static final Log LOGGER = LogFactory.getLog(FullTextIndexer.class);
 
     private final BibDatabaseContext databaseContext;
     private IndexWriter iw;
     private Directory index;
+    private boolean ready = false;
+    private StandardAnalyzer analyzer;
+
+    public boolean isReady() {
+        return ready;
+    }
 
     public FullTextIndexer(final BibDatabaseContext databaseContext)  {
         this.databaseContext = databaseContext;
@@ -45,31 +71,55 @@ public class FullTextIndexer {
         if( !dbPath.isPresent() )
             throw new JabRefException("cannot run indexer on unsaved database");
 
-        final StandardAnalyzer analyzer = new StandardAnalyzer();
-
         try {
             index = FSDirectory.open(Paths.get(dbPath.get()+".lucene"));
         } catch (final IOException e) {
             throw new JabRefException("Exception opening/creating the fulltext index");
         }
 
-        final IndexWriterConfig config = new IndexWriterConfig(analyzer);
+        analyzer = new StandardAnalyzer();
+        config = new IndexWriterConfig(analyzer);
 
+        ready = true;
+    }
+
+
+    private void prepareForWriting() throws JabRefException {
+        ready = false;
         try {
+            if( reader != null ) {
+                searcher = null;
+                reader.close();
+            }
             iw = new IndexWriter(index, config);
         } catch (final IOException e) {
             throw new JabRefException("Exception creating the index writer");
         }
     }
 
+    private void doneWriting() throws JabRefException {
+        try {
+            iw.close();
+
+            reader = DirectoryReader.open(index);
+            searcher = new IndexSearcher(reader);
+        } catch (final IOException e) {
+            throw new JabRefException("Exception closing the index writer");
+        }
+        ready = true;
+    }
 
     public void recreateIndex() throws JabRefException {
+        prepareForWriting();
+
         try {
+            ready = false;
             iw.deleteAll();
             for( final BibEntry entry: databaseContext.getDatabase().getEntries() ) {
                 updateEntry(entry);
             }
-            iw.close();
+
+            doneWriting();
         } catch (final IOException e) {
             e.printStackTrace();
         }
@@ -82,8 +132,6 @@ public class FullTextIndexer {
         final String id = entry.getId();
         final String key = entry.getCiteKeyOptional().get();
 
-
-
         final List<File> files = getListOfLinkedFiles(Collections.singletonList(entry), databaseContext.getFileDirectories(Globals.prefs.getFileDirectoryPreferences()));
         if( files.isEmpty() )
             return;
@@ -92,11 +140,17 @@ public class FullTextIndexer {
         for( final File file: files ) {
 
             final String fileName = file.toString();
-            LOGGER.info(id +" / "+key+" / "+fileName);
+            LOGGER.debug(id +" / "+key+" / "+fileName);
 
-            doc.add(new StringField("key", key, Field.Store.YES));
-            doc.add(new StringField("filename", fileName, Field.Store.YES));
-            doc.add(new TextField("fullcontent", PDFTextExtractor.extractPDFText(file), Field.Store.YES));
+            if( !fileName.endsWith("pdf") ) {
+                LOGGER.warn("Only PDF files can be indexed at this time");
+                return;
+            }
+
+            doc.add(new StringField(KEY.name(), key, Field.Store.YES));
+            doc.add(new StringField(FILE_NAME.name(), fileName, Field.Store.YES));
+            String contents = PDFTextExtractor.extractPDFText(file);
+            doc.add(new TextField(FULL_CONTENT.name(), contents, Field.Store.NO));
 
             try {
                 iw.addDocument(doc);
@@ -104,6 +158,46 @@ public class FullTextIndexer {
                 throw new JabRefException("Error adding document");
             }
         }
+    }
+
+    public Set<String> searchForString(String queryStr) throws JabRefException { // RegexpQuery, FieldValueQuery
+        LOGGER.debug("Searching full-text (simple) for "+queryStr);
+        final Query q;
+        try {
+            q = new QueryParser(FULL_CONTENT.name(), analyzer).parse(queryStr);
+
+            final TopDocs docs = searcher.search(q, MAX_DOCS);
+
+            return Arrays.stream(docs.scoreDocs)
+                    .map(sd -> sd.doc)
+                    .map(i -> getDocument(searcher, i))
+                    .filter(d -> d != null)
+                    .map(FullTextIndexer::getKey)
+                    .filter(d -> d != null)
+                    .collect(Collectors.toSet());
+
+        } catch (ParseException e) {
+            throw new JabRefException("Lucene query is invalid");
+        } catch (IOException e) {
+            throw new JabRefException("Error in Lucene search");
+        }
+    }
+
+    private static Document getDocument(IndexSearcher searcher, int i) {
+        try {
+            return searcher.doc(i, Collections.singleton(KEY.name()));
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static String getKey(Document d) {
+        String[] keys = d.getValues(KEY.name());
+        if( keys.length != 1 ) {
+            LOGGER.warn("got "+keys.length+" results");
+            return null;
+        }
+        return keys[0];
     }
 }
 

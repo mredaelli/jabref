@@ -14,14 +14,13 @@ public class PDFTextExtractor {
     private static final Log LOGGER = LogFactory.getLog(PDFTextExtractor.class);
 
     public static String extractPDFText(final File file) throws JabRefException {
-        try {
-            final PDDocument doc = PDDocument.load(file);
+        try(PDDocument doc = PDDocument.load(file)) {
             final PDFTextStripper stripper = new PDFTextStripper();
 
             stripper.setLineSeparator("\n");
             stripper.setStartPage(1);
-            //stripper.setEndPage(5);// this mean that it will index the first 5 pages only
-            return stripper.getText(doc);
+            stripper.setEndPage(doc.getNumberOfPages());
+            return stripper.getText(doc).replaceAll("-\\n", "");
 
         } catch (final IOException e) {
             LOGGER.error(e.getMessage());
@@ -29,4 +28,5 @@ public class PDFTextExtractor {
             throw new JabRefException("Error getting text from PDF file "+file);
         }
     }
+
 }

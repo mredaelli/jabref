@@ -19,16 +19,14 @@ public class SearchQuery implements SearchMatcher {
     private final String query;
     private final boolean caseSensitive;
     private final boolean regularExpression;
-    private final boolean fullText;
     private final SearchRule rule;
     private final String description;
 
-    public SearchQuery(String query, boolean caseSensitive, boolean regularExpression, boolean fullText) {
+    public SearchQuery(String query, boolean caseSensitive, boolean regularExpression) {
         this.query = Objects.requireNonNull(query);
         this.caseSensitive = caseSensitive;
         this.regularExpression = regularExpression;
-        this.fullText = fullText;
-        this.rule = SearchRules.getSearchRuleByQuery(query, caseSensitive, regularExpression, fullText);
+        this.rule = SearchRules.getSearchRuleByQuery(query, caseSensitive, regularExpression);
         this.description = SearchDescribers.getSearchDescriberFor(rule, query).getDescription();
     }
 
