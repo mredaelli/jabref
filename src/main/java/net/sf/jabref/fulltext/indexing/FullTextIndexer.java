@@ -7,15 +7,20 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.eventbus.Subscribe;
 import net.sf.jabref.Globals;
 import net.sf.jabref.JabRefException;
 import net.sf.jabref.fulltext.extractor.PDFTextExtractor;
 import net.sf.jabref.model.database.BibDatabaseContext;
+import net.sf.jabref.model.database.event.EntryAddedEvent;
+import net.sf.jabref.model.database.event.EntryRemovedEvent;
 import net.sf.jabref.model.entry.BibEntry;
+import net.sf.jabref.model.entry.event.FieldChangedEvent;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -43,7 +48,8 @@ import static net.sf.jabref.logic.util.io.FileUtil.getListOfLinkedFiles;
 public class FullTextIndexer {
 
     private static final int MAX_DOCS = 9999;
-    private IndexWriterConfig config;
+    private final StandardAnalyzer analyzer = new StandardAnalyzer();
+    private final IndexWriterConfig config= new IndexWriterConfig(analyzer);
     private IndexSearcher searcher;
     private IndexReader reader;
 
@@ -55,7 +61,6 @@ public class FullTextIndexer {
     private IndexWriter iw;
     private Directory index;
     private boolean ready = false;
-    private StandardAnalyzer analyzer;
 
     public boolean isReady() {
         return ready;
@@ -65,7 +70,7 @@ public class FullTextIndexer {
         this.databaseContext = databaseContext;
     }
 
-    public void create() throws JabRefException {
+    public boolean open() throws JabRefException {
         final Optional<Path> dbPath = databaseContext.getDatabasePath();
 
         if( !dbPath.isPresent() )
@@ -74,13 +79,14 @@ public class FullTextIndexer {
         try {
             index = FSDirectory.open(Paths.get(dbPath.get()+".lucene"));
         } catch (final IOException e) {
+            ready = false;
             throw new JabRefException("Exception opening/creating the fulltext index");
         }
 
-        analyzer = new StandardAnalyzer();
-        config = new IndexWriterConfig(analyzer);
+        databaseContext.getDatabase().registerListener(this);
 
         ready = true;
+        return ready;
     }
 
 
@@ -133,8 +139,10 @@ public class FullTextIndexer {
         final String key = entry.getCiteKeyOptional().get();
 
         final List<File> files = getListOfLinkedFiles(Collections.singletonList(entry), databaseContext.getFileDirectories(Globals.prefs.getFileDirectoryPreferences()));
-        if( files.isEmpty() )
+        if( files.isEmpty() ) {
+            LOGGER.warn("Not indexing entry without a citekey");
             return;
+        }
 
         final Document doc = new Document();
         for( final File file: files ) {
@@ -149,7 +157,7 @@ public class FullTextIndexer {
 
             doc.add(new StringField(KEY.name(), key, Field.Store.YES));
             doc.add(new StringField(FILE_NAME.name(), fileName, Field.Store.YES));
-            String contents = PDFTextExtractor.extractPDFText(file);
+            final String contents = PDFTextExtractor.extractPDFText(file);
             doc.add(new TextField(FULL_CONTENT.name(), contents, Field.Store.NO));
 
             try {
@@ -160,7 +168,7 @@ public class FullTextIndexer {
         }
     }
 
-    public Set<String> searchForString(String queryStr) throws JabRefException { // RegexpQuery, FieldValueQuery
+    public Set<String> searchForString(final String queryStr) throws JabRefException { // RegexpQuery, FieldValueQuery
         LOGGER.debug("Searching full-text (simple) for "+queryStr);
         final Query q;
         try {
@@ -171,33 +179,59 @@ public class FullTextIndexer {
             return Arrays.stream(docs.scoreDocs)
                     .map(sd -> sd.doc)
                     .map(i -> getDocument(searcher, i))
-                    .filter(d -> d != null)
+                    .filter(Objects::nonNull)
                     .map(FullTextIndexer::getKey)
-                    .filter(d -> d != null)
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
-        } catch (ParseException e) {
+        } catch (final ParseException e) {
             throw new JabRefException("Lucene query is invalid");
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new JabRefException("Error in Lucene search");
         }
     }
 
-    private static Document getDocument(IndexSearcher searcher, int i) {
+    private static Document getDocument(final IndexSearcher searcher, final int i) {
         try {
             return searcher.doc(i, Collections.singleton(KEY.name()));
-        } catch (IOException e) {
+        } catch (final IOException e) {
             return null;
         }
     }
 
-    private static String getKey(Document d) {
-        String[] keys = d.getValues(KEY.name());
+    private static String getKey(final Document d) {
+        final String[] keys = d.getValues(KEY.name());
         if( keys.length != 1 ) {
             LOGGER.warn("got "+keys.length+" results");
             return null;
         }
         return keys[0];
+    }
+
+    @Subscribe
+    public void listen(FieldChangedEvent fieldChangedEvent) {
+        if (fieldChangedEvent.getFieldName().equals("file")) {
+            LOGGER.info("file change: recompute");
+        }
+        if (fieldChangedEvent.getFieldName().equals(BibEntry.KEY_FIELD)) {
+            LOGGER.info("update the entry in lucene, changing its ID");
+        }
+    }
+
+    @Subscribe
+    public void listen(EntryRemovedEvent entryRemovedEvent) {
+        Optional<String> citeKey = entryRemovedEvent.getBibEntry().getCiteKeyOptional();
+        if (citeKey.isPresent()) {
+            LOGGER.info("removing entries for removed entry");
+        }
+    }
+
+    @Subscribe
+    public void listen(EntryAddedEvent entryAddedEvent) {
+        Optional<String> citekey = entryAddedEvent.getBibEntry().getCiteKeyOptional();
+        if (citekey.isPresent()) {
+            LOGGER.info("indexing new entries for new entry");
+        }
     }
 }
 
