@@ -3,6 +3,7 @@ package net.sf.jabref.logic.importer;
 import java.io.File;
 import java.io.IOException;
 
+import net.sf.jabref.JabRefException;
 import net.sf.jabref.logic.importer.fileformat.BibtexImporter;
 import net.sf.jabref.logic.l10n.Localization;
 import net.sf.jabref.logic.specialfields.SpecialFieldsUtils;
@@ -41,6 +42,14 @@ public class OpenDatabase {
             }
 
             ParserResult pr = OpenDatabase.loadDatabase(file, importFormatPreferences);
+
+            if( pr.getMetaData().isFullTextIndexed() ) try {
+                pr.getDatabaseContext().getFullTextIndexer().setup();
+                pr.getDatabaseContext().getFullTextIndexer().open();
+            } catch (JabRefException e) {
+                LOGGER.error("error", e);
+            }
+
             pr.setFile(file);
             if (pr.hasWarnings()) {
                 for (String aWarn : pr.warnings()) {

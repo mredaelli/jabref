@@ -35,7 +35,7 @@ public class BibDatabaseContext {
     /**
      * this is the full text fullTextIndexer for the current database
      */
-    private FullTextIndexer fullTextIndexer = new FullTextIndexer(this);
+    private final FullTextIndexer fullTextIndexer = new FullTextIndexer(this);
 
     public BibDatabaseContext() {
         this(new Defaults());
