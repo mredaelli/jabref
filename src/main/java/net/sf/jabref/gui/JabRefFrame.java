@@ -58,9 +58,6 @@ import javax.swing.TransferHandler;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 
-import com.google.common.eventbus.Subscribe;
-import com.jgoodies.looks.HeaderStyle;
-import com.jgoodies.looks.Options;
 import net.sf.jabref.Globals;
 import net.sf.jabref.JabRefException;
 import net.sf.jabref.JabRefExecutorService;
@@ -140,6 +137,10 @@ import net.sf.jabref.preferences.HighlightMatchingGroupPreferences;
 import net.sf.jabref.preferences.JabRefPreferences;
 import net.sf.jabref.preferences.LastFocusedTabPreferences;
 import net.sf.jabref.preferences.SearchPreferences;
+
+import com.google.common.eventbus.Subscribe;
+import com.jgoodies.looks.HeaderStyle;
+import com.jgoodies.looks.Options;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import osx.macadapter.MacAdapter;
@@ -2120,7 +2121,7 @@ private class ReindexBtnAction extends MnemonicAwareAction {
                     .getFullTextIndexer();
 
             try {
-                fullTextIndexer.create();
+                fullTextIndexer.setup();
                 fullTextIndexer.recreateIndex();
             } catch (JabRefException e1) {
                 e1.printStackTrace();
