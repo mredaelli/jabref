@@ -801,6 +801,16 @@ public class BasePanel extends JPanel implements ClipboardOwner, FileUpdateListe
                 // independently of the copied
                 // ones.
                 be.setId(IdGenerator.next());
+
+                // With the citekey saved in Lucene
+                // best to try and avoid duplicated keys
+                if( bibDatabaseContext.getMetaData().isFullTextIndexed() ) {
+                     be1.getCiteKeyOptional()
+                            .filter(key -> bibDatabaseContext.getDatabase()
+                                    .getEntryByKey(key).isPresent())
+                             .ifPresent( key -> be.setCiteKey(key + '_' + be.getId()));
+                }
+
                 bibDatabaseContext.getDatabase().insertEntry(be);
 
                 ce.addEdit(new UndoableInsertEntry(bibDatabaseContext.getDatabase(), be, BasePanel.this));
