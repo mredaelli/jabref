@@ -44,6 +44,7 @@ public class OpenDatabase {
             ParserResult pr = OpenDatabase.loadDatabase(file, importFormatPreferences);
 
             if( pr.getMetaData().isFullTextIndexed() ) try {
+                LOGGER.debug("opening index");
                 pr.getDatabaseContext().getFullTextIndexer().setup();
                 pr.getDatabaseContext().getFullTextIndexer().open();
             } catch (JabRefException e) {
