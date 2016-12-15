@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -53,10 +54,6 @@ import static net.sf.jabref.fulltext.indexing.FullTextIndexer.Status.SEARCHABLE;
 import static net.sf.jabref.fulltext.indexing.FullTextIndexer.Status.WRITING;
 import static net.sf.jabref.logic.util.io.FileUtil.getListOfLinkedFiles;
 
-/* TODO: when duplicating an entry, the bibtex key is the same, so the same documents are added twice, and when removed, everything is removed
-    - use the unique identifier temporarily?
-    -  automatically make the CiteKey unique?
- */
 public class FullTextIndexer {
 
     private static final int MAX_DOCS = 9999;
@@ -82,6 +79,7 @@ public class FullTextIndexer {
     }
 
     public void setup() throws JabRefException {
+        LOGGER.debug("Setting up indexer");
         final Optional<Path> dbPath = databaseContext.getDatabasePath();
 
         if( !dbPath.isPresent() ) throw new JabRefException("cannot run indexer on unsaved database");
@@ -106,6 +104,7 @@ public class FullTextIndexer {
     }
 
     public void open() throws JabRefException {
+        LOGGER.debug("Opening writer");
         switch( status ) {
             case SEARCHABLE:
             case WRITING:
@@ -127,6 +126,7 @@ public class FullTextIndexer {
     }
 
     private void close() throws JabRefException {
+        LOGGER.debug("Closing index");
         switch( status ) {
             case NOT_IN_USE:
                 throw new JabRefException("Indexer is not in use: should not be listening");
@@ -147,6 +147,7 @@ public class FullTextIndexer {
 
 
     private void openWriter() throws JabRefException {
+        LOGGER.debug("Opening writer");
         switch( status ) {
             case WRITING:
                 LOGGER.warn("Indexer is already in writing state: should not happen");
@@ -167,6 +168,7 @@ public class FullTextIndexer {
     }
 
     private void closeWriter() throws JabRefException {
+        LOGGER.debug("Closing writer");
         switch( status ) {
             case NOT_IN_USE:
                 throw new JabRefException("Indexer is not in use: should not be listening");
@@ -195,6 +197,7 @@ public class FullTextIndexer {
         if( status != CLOSED )
             throw new JabRefException("Close indexer before destroying it");
         try {
+            LOGGER.debug("Destroying DB");
             databaseContext.getDatabase()
                     .unregisterListener(this);
             databaseContext.getMetaData()
@@ -211,9 +214,10 @@ public class FullTextIndexer {
         openWriter();
 
         try {
+            LOGGER.debug("recreating. Deleting everything");
             iw.deleteAll();
             for( final BibEntry entry: databaseContext.getDatabase().getEntries() ) {
-                updateEntry(entry);
+                insertEntry(entry);
             }
 
             closeWriter();
@@ -222,7 +226,29 @@ public class FullTextIndexer {
         }
     }
 
-    private void updateEntry(final BibEntry entry) throws JabRefException {
+    private void indexFile(final String key, final File file) throws JabRefException {
+        final String fileName = file.toString();
+        LOGGER.debug("Indexing "+fileName+" for "+key);
+
+        if( !fileName.endsWith("pdf") ) {
+            LOGGER.warn("Only PDF files can be indexed at this time");
+            return;
+        }
+
+        final Document doc = new Document();
+        doc.add(new StringField(KEY.name(), key, Field.Store.YES));
+        doc.add(new StringField(FILE_NAME.name(), fileName, Field.Store.YES));
+        final String contents = PDFTextExtractor.extractPDFText(file);
+        doc.add(new TextField(FULL_CONTENT.name(), contents, Field.Store.NO));
+
+        try {
+            iw.addDocument(doc);
+        } catch (final IOException e) {
+            throw new JabRefException("Error adding document");
+        }
+    }
+
+    private void insertEntry(final BibEntry entry) throws JabRefException {
         if( status != WRITING )
             throw new JabRefException("Indexer not in writing state");
 
@@ -239,31 +265,20 @@ public class FullTextIndexer {
             return;
         }
 
-        final Document doc = new Document();
-        for( final File file: files ) {
+        for( final File file: files )
+            indexFile(key, file);
+    }
 
-            final String fileName = file.toString();
-            LOGGER.debug(key+" / "+fileName);
-
-            if( !fileName.endsWith("pdf") ) {
-                LOGGER.warn("Only PDF files can be indexed at this time");
-                return;
-            }
-
-            doc.add(new StringField(KEY.name(), key, Field.Store.YES));
-            doc.add(new StringField(FILE_NAME.name(), fileName, Field.Store.YES));
-            final String contents = PDFTextExtractor.extractPDFText(file);
-            doc.add(new TextField(FULL_CONTENT.name(), contents, Field.Store.NO));
-
-            try {
-                iw.addDocument(doc);
-            } catch (final IOException e) {
-                throw new JabRefException("Error adding document");
-            }
-        }
+    private void removeFile(final String key, final File file) throws IOException {
+        LOGGER.debug("Removing file "+file+" for key "+key);
+        if( file != null )
+            iw.deleteDocuments(new Term(KEY.name(), key), new Term(FILE_NAME.name(), file.toString()));
+        else
+            iw.deleteDocuments(new Term(KEY.name(), key));
     }
 
     private void removeEntry(final BibEntry entry) throws JabRefException {
+
         if( status != WRITING )
             throw new JabRefException("Indexer not in writing state");
 
@@ -277,12 +292,20 @@ public class FullTextIndexer {
 
         LOGGER.info("Removing entry data for cite key "+key);
         try {
-            iw.deleteDocuments(new Term(KEY.name(), key));
+            removeFile(key, null);
         } catch (final IOException e) {
             e.printStackTrace();
         }
     }
 
+    private void changeEntryKey(final String oldKey, final String newKey) throws JabRefException {
+        try {
+            LOGGER.debug("change entry from "+oldKey+" to "+newKey);
+            iw.updateDocValues(new Term(KEY.name(), oldKey), new StringField(KEY.name(), newKey, Field.Store.YES));
+        } catch (final IOException e) {
+            throw new JabRefException("Error updating", e);
+        }
+    }
     /**
      * Returns the citation keys of all matching BibEntries
      *
@@ -301,9 +324,9 @@ public class FullTextIndexer {
 
             return Arrays.stream(docs.scoreDocs)
                     .map(sd -> sd.doc)
-                    .map(i -> getLuceneDocument(searcher, i))
+                    .map(this::getLuceneDocument)
                     .filter(Objects::nonNull)
-                    .map(d -> getLuceneKey(d))
+                    .map(FullTextIndexer::getLuceneKey)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
@@ -315,7 +338,7 @@ public class FullTextIndexer {
     }
 
 
-    private static Document getLuceneDocument(final IndexSearcher searcher, final int i) {
+    private Document getLuceneDocument(final int i) {
         try {
             return searcher.doc(i, Collections.singleton(KEY.name()));
         } catch (final IOException e) {
@@ -334,12 +357,65 @@ public class FullTextIndexer {
 
     @Subscribe
     public void listen(final FieldChangedEvent fieldChangedEvent) {
+        final String oldValue = fieldChangedEvent.getOldValue();
+        final String newValue = fieldChangedEvent.getNewValue();
         if ( "file".equals(fieldChangedEvent.getFieldName()) ) {
-            LOGGER.info("file change: recompute");
-            LOGGER.info(fieldChangedEvent.getOldValue()+" to "+fieldChangedEvent.getOldValue());
+            LOGGER.debug("file change: recompute");
+            LOGGER.debug(oldValue +" to "+ newValue);
+
+            fieldChangedEvent.getBibEntry().getCiteKeyOptional().ifPresent( key -> {
+
+                final Set<File> oldFiles = new HashSet<>(getListOfLinkedFiles(oldValue, databaseContext.getFileDirectories(Globals.prefs.getFileDirectoryPreferences())));
+                final Set<File> newFiles = new HashSet<>(getListOfLinkedFiles(newValue, databaseContext.getFileDirectories(Globals.prefs.getFileDirectoryPreferences())));
+
+                final Set<File> added = new HashSet<>(newFiles);
+                added.removeAll(oldFiles);
+
+                final Set<File> removed = new HashSet<>(oldFiles);
+                removed.removeAll(newFiles);
+
+                try {
+                    LOGGER.info("update in lucene, file " + oldValue + " to " + newValue);
+                    switch( status ) {
+                        case SEARCHABLE:
+                        case CLOSED:
+                            openWriter();
+                            for( final File f: added) indexFile(key, f);
+                            for( final File f: removed) removeFile(key, f);
+                            closeWriter();
+                            break;
+                        case WRITING:
+                            changeEntryKey(oldValue, newValue);
+                            break;
+                        case NOT_IN_USE:
+                            LOGGER.warn("Not in use: should not be listening");
+                            break;
+                    }
+                } catch (final Exception e) {
+                    e.printStackTrace();
+                }
+            });
         }
         if (fieldChangedEvent.getFieldName().equals(BibEntry.KEY_FIELD)) {
-            LOGGER.info("update the entry in lucene, changing its ID");
+            try {
+                LOGGER.info("update in lucene, changing ID from "+oldValue+" to "+newValue);
+                switch( status ) {
+                    case SEARCHABLE:
+                    case CLOSED:
+                        openWriter();
+                        changeEntryKey(oldValue, newValue);
+                        closeWriter();
+                        break;
+                    case WRITING:
+                        changeEntryKey(oldValue, newValue);
+                        break;
+                    case NOT_IN_USE:
+                        LOGGER.warn("Not in use: should not be listening");
+                        break;
+                }
+            } catch(final Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -374,11 +450,11 @@ public class FullTextIndexer {
                 case SEARCHABLE:
                 case CLOSED:
                     openWriter();
-                    updateEntry(entry);
+                    insertEntry(entry);
                     closeWriter();
                     break;
                 case WRITING:
-                    updateEntry(entry);
+                    insertEntry(entry);
                     break;
                 case NOT_IN_USE:
                     LOGGER.warn("Not in use: should not be listening");
@@ -395,12 +471,12 @@ public class FullTextIndexer {
         try {
             if( status != NOT_IN_USE && !event.getMetaData()
                     .isFullTextIndexed() ) {
-                LOGGER.info("Time to destroy the world");
+                LOGGER.debug("Time to destroy the world");
                 close();
                 destroyDB();
             } else if( status == NOT_IN_USE && event.getMetaData()
                     .isFullTextIndexed() ) {
-                LOGGER.info("Going live");
+                LOGGER.debug("Going live");
                 setup();
                 open();
             }

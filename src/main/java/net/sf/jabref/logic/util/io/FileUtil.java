@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.Vector;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import net.sf.jabref.logic.layout.Layout;
 import net.sf.jabref.logic.layout.LayoutFormatterPreferences;
@@ -32,7 +34,6 @@ import net.sf.jabref.model.database.BibDatabaseContext;
 import net.sf.jabref.model.entry.BibEntry;
 import net.sf.jabref.model.entry.FieldName;
 import net.sf.jabref.model.entry.FileField;
-import net.sf.jabref.model.entry.ParsedFileField;
 import net.sf.jabref.model.metadata.FileDirectoryPreferences;
 
 import org.apache.commons.logging.Log;
@@ -403,16 +404,20 @@ public class FileUtil {
         Objects.requireNonNull(fileDirs);
 
         List<File> result = new ArrayList<>();
-        for (BibEntry entry : bes) {
-            entry.getField(FieldName.FILE).ifPresent(fileField -> {
-                List<ParsedFileField> fileList = FileField.parse(fileField);
-                for (ParsedFileField file : fileList) {
-                    expandFilename(file.getLink(), fileDirs).ifPresent(result::add);
-                }
-            });
-        }
-
+        bes.forEach( entry ->
+            entry.getField(FieldName.FILE).ifPresent(fileField ->
+                    result.addAll(getListOfLinkedFiles(fileField, fileDirs))
+            )
+        );
         return result;
+    }
+
+    public static List<File> getListOfLinkedFiles(String fileField, List<String> fileDirs) {
+        return FileField.parse(fileField)
+                .stream()
+                .map(file -> expandFilename(file.getLink(), fileDirs))
+                .flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty))
+                .collect(Collectors.toList());
     }
 
     /**
