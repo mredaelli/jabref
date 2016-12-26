@@ -273,7 +273,7 @@ public class BibDatabaseContext {
 
     public void close() {
         try {
-            getFullTextIndexer().destroyDB();
+            getFullTextIndexer().tearDown();
         } catch (JabRefException e) {
             e.printStackTrace();
         }

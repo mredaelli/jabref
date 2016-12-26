@@ -860,15 +860,11 @@ public class JabRefFrame extends JFrame implements OutputPrinter {
                     context.clearDBMSSynchronizer();
                 }
 
-                try {
-                    context.getFullTextIndexer().close();
-                } catch (JabRefException e) {
-                    e.printStackTrace();
-                }
 
                 AutosaveManager.shutdown(context);
                 BackupManager.shutdown(context);
                 context.getDatabaseFile().map(File::getAbsolutePath).ifPresent(filenames::add);
+                context.close();
             }
         }
 
