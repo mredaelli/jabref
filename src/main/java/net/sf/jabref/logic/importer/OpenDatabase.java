@@ -9,7 +9,6 @@ import net.sf.jabref.logic.l10n.Localization;
 import net.sf.jabref.logic.specialfields.SpecialFieldsUtils;
 import net.sf.jabref.logic.util.io.FileBasedLock;
 import net.sf.jabref.model.entry.BibEntry;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -43,14 +42,6 @@ public class OpenDatabase {
 
             ParserResult pr = OpenDatabase.loadDatabase(file, importFormatPreferences);
 
-            if( pr.getMetaData().isFullTextIndexed() ) try {
-                LOGGER.debug("opening index");
-                pr.getDatabaseContext().getFullTextIndexer().setup();
-                pr.getDatabaseContext().getFullTextIndexer().open();
-            } catch (JabRefException e) {
-                LOGGER.error("error", e);
-            }
-
             pr.setFile(file);
             if (pr.hasWarnings()) {
                 for (String aWarn : pr.warnings()) {
@@ -81,6 +72,14 @@ public class OpenDatabase {
                 SpecialFieldsUtils.syncSpecialFieldsFromKeywords(entry, importFormatPreferences.getKeywordSeparator());
             }
             LOGGER.debug("Synchronized special fields based on keywords");
+        }
+
+        if( result.getMetaData().isFullTextIndexed() ) try {
+            LOGGER.debug("opening index");
+            result.getDatabaseContext().getFullTextIndexer().setup();
+            result.getDatabaseContext().getFullTextIndexer().open();
+        } catch (JabRefException e) {
+            LOGGER.error("error", e);
         }
 
         return result;

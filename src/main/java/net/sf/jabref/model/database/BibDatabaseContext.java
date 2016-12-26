@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import net.sf.jabref.JabRefException;
 import net.sf.jabref.fulltext.indexing.FullTextIndexer;
 import net.sf.jabref.model.Defaults;
 import net.sf.jabref.model.bibtexkeypattern.GlobalBibtexKeyPattern;
@@ -268,5 +269,13 @@ public class BibDatabaseContext {
         }
 
         this.location = DatabaseLocation.LOCAL;
+    }
+
+    public void close() {
+        try {
+            getFullTextIndexer().destroyDB();
+        } catch (JabRefException e) {
+            e.printStackTrace();
+        }
     }
 }
