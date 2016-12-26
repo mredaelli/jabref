@@ -1,15 +1,16 @@
 package net.sf.jabref;
 
-import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import net.sf.jabref.gui.undo.UndoableInsertEntry;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -38,7 +39,12 @@ public class JabRefExecutorService implements Executor {
         return thread;
     });
 
-    private final Timer timer = new Timer("timer", true);
+    private final ScheduledThreadPoolExecutor timerExecutorService = new ScheduledThreadPoolExecutor(2, r -> {
+        Thread thread = new Thread(r);
+        thread.setName("JabRef CachedThreadPool");
+        thread.setUncaughtExceptionHandler(new FallbackExceptionHandler());
+        return thread;
+    });
 
     private JabRefExecutorService() {}
 
@@ -138,12 +144,17 @@ public class JabRefExecutorService implements Executor {
     }
 
     public void submit(TimerTask timerTask, long millisecondsDelay) {
-        timer.schedule(timerTask, millisecondsDelay);
+        timerExecutorService.schedule(timerTask, millisecondsDelay, TimeUnit.MILLISECONDS);
+    }
+
+    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable timerTask, long initialDelay, long delay) {
+        return timerExecutorService.scheduleWithFixedDelay(timerTask, initialDelay, delay, TimeUnit.MILLISECONDS);
     }
 
     public void shutdownEverything() {
         // those threads will be allowed to finish
         this.executorService.shutdown();
+        this.timerExecutorService.shutdown();
         //those threads will be interrupted in their current task
         this.lowPriorityExecutorService.shutdownNow();
         // kill the remote thread

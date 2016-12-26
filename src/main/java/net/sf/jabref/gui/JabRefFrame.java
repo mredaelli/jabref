@@ -859,6 +859,13 @@ public class JabRefFrame extends JFrame implements OutputPrinter {
                     context.getDBMSSynchronizer().closeSharedDatabase();
                     context.clearDBMSSynchronizer();
                 }
+
+                try {
+                    context.getFullTextIndexer().close();
+                } catch (JabRefException e) {
+                    e.printStackTrace();
+                }
+
                 AutosaveManager.shutdown(context);
                 BackupManager.shutdown(context);
                 context.getDatabaseFile().map(File::getAbsolutePath).ifPresent(filenames::add);
@@ -2243,6 +2250,7 @@ private class ReindexBtnAction extends MnemonicAwareAction {
         } else {
             removeTab(panel);
         }
+        context.close();
         AutosaveManager.shutdown(context);
         BackupManager.shutdown(context);
     }
