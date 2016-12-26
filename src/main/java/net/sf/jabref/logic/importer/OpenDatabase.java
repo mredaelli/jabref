@@ -77,7 +77,6 @@ public class OpenDatabase {
         if( result.getMetaData().isFullTextIndexed() ) try {
             LOGGER.debug("opening index");
             result.getDatabaseContext().getFullTextIndexer().setup();
-            result.getDatabaseContext().getFullTextIndexer().open();
         } catch (JabRefException e) {
             LOGGER.error("error", e);
         }
