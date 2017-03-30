@@ -129,8 +129,8 @@ dependencies {
     
     compile 'com.github.lgooddatepicker:LGoodDatePicker:8.2.2'
 
-    compile 'org.apache.lucene:lucene-queryparser:6.3.0'
     compile 'org.apache.lucene:lucene-core:6.3.0'
+    compile 'org.apache.lucene:lucene-queryparser:6.3.0'
 
 
     testCompile 'junit:junit:4.12'
