@@ -322,14 +322,40 @@ public class FullTextIndexer implements Worker {
         return databaseContext.getDatabase()
                 .getEntries()
                 .stream()
-                .map(this::isUpToDate)
+                .map(this::isNotUpToDate)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
     }
 
-    private Set<LuceneID> isUpToDate(BibEntry bibEntry) {
+    private Set<LuceneID> isNotUpToDate(BibEntry entry) {
+        if( !entry.getCiteKeyOptional().isPresent() ) {
+            LOGGER.info("Not checking entry without cite key");
+            return Collections.emptySet();
+        }
 
+        final String key = entry.getCiteKeyOptional().get();
 
+        final List<File> files = getListOfLinkedFiles(Collections.singletonList(entry), databaseContext.getFileDirectories(Globals.prefs.getFileDirectoryPreferences()));
+        if( files.isEmpty() ) {
+            LOGGER.warn("Not indexing entry "+key+" , which is without files");
+            return Collections.emptySet();
+        }
+
+        final Set<LuceneID> res = new HashSet<>();
+        files.forEach(file -> {
+            LuceneID lID = new LuceneID(file, key);
+            Optional<Integer> id = lt.lookupDocument(lID);
+
+            if( id.isPresent() ) {
+                lID.id = id.get();
+                if( lt.isUpToDate(lID) )
+                    return;
+            }
+
+            res.add(lID);
+        });
+
+        return res;
     }
 
 
